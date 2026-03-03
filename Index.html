@@ -1,0 +1,2664 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<!-- ★ viewport のカンマ抜けを修正：iPhoneのタイトルタップ拡大（スマートズーム）を強く抑制 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>剣道予定表</title>
+
+<style>
+
+  /* ============================
+   Fullscreen Sheet：見やすさ強化
+============================ */
+.sheet{
+  /* 画面全体で読みやすいスケール */
+  font-size: clamp(17px, 4.4vw, 22px);
+}
+
+.sheetHead{
+  padding: 14px 14px 12px;
+  min-height: 64px;
+}
+
+.sheetTitle{
+  font-size: 1.15em;
+  font-weight: 950;
+}
+
+.sheetBody{
+  padding: 16px 14px 18px;
+  height: calc(100% - 64px);
+}
+
+/* ラベルはやや大きく、余白も増やす */
+.sheet label{
+  font-size: 0.95em;
+  margin: 14px 0 8px;
+  font-weight: 900;
+}
+
+/* 入力欄を大きく、タップしやすく */
+.sheet input,
+.sheet select,
+.sheet textarea{
+  min-height: 56px;
+  border-radius: 16px;
+  padding: 14px 14px;
+  font-size: 1.05em;
+}
+
+/* テキストエリアは特に使いやすく */
+.sheet textarea{
+  min-height: 140px;
+  line-height: 1.5;
+}
+
+/* ボタンを大きく・余白広め */
+.sheet button{
+  min-height: 56px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 1.0em;
+}
+
+/* 2カラムが窮屈になりやすいので、スマホは1カラム固定 */
+.sheet .formGrid{
+  grid-template-columns: 1fr !important;
+  gap: 12px;
+}
+
+/* その日の予定カードの余白を広げる */
+.sheet .item{
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.sheet .itemActions{
+  gap: 10px;
+}
+
+/* タイトルタグを“見やすく”、かつ圧迫しない */
+.sheet .itemTxt .t{
+  padding: 14px 16px;
+  border-radius: 18px;
+  font-size: clamp(22px, 6.3vw, 28px);
+  font-weight: 780;
+}
+
+/* 付随情報も読みやすく */
+.sheet .itemTxt .s{
+  font-size: 0.95em;
+  margin-top: 10px;
+}
+
+:root{
+  --bg:#ffffff;
+  --panel:#ffffff;
+  --line:#eef0f4;
+  --line2:#f4f5f8;
+  --text:#111827;
+  --muted:#6b7280;
+  --muted2:#9aa1ad;
+
+  --today:#eef5ff;
+  --sun:#ff5b7b;
+  --sat:#3b82f6;
+
+  --shadow: 0 12px 28px rgba(20, 26, 36, .10);
+  --radius: 16px;
+  --tap: 48px;
+
+  --primary:#3b82f6;
+}
+
+html, body { height: 100%; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP",
+               "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+
+  font-size: clamp(16px, 3.8vw, 20px);
+  font-weight: 550;
+}
+
+*{ box-sizing:border-box; }
+
+button, .cell, .item, .attachCard, input, select, textarea, .chip{
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ★ 任意：誤選択/誤ズーム抑制（効き目が良い） */
+.monthSwipe, .cell, .ev, .ev .txt{
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+header{
+  height: 96px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 10px 12px;
+  border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.92);
+  backdrop-filter:saturate(140%) blur(6px);
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+
+.brand{ display:flex; align-items:center; gap:10px; min-width: 170px; }
+.logo{
+  width:34px; height:34px; border-radius:12px;
+  background:linear-gradient(135deg, #60a5fa, #c7d2fe);
+}
+.brandTitle{ font-weight:900; font-size: 1.0em; letter-spacing:.2px; }
+
+.nav{ display:flex; align-items:center; gap:8px; }
+.monthTitle{
+  font-weight: 950;
+  font-size: 1.25em;
+  letter-spacing:.2px;
+  min-width: 9.5em;
+  text-align:center;
+  padding: 10px 8px;
+}
+
+.actions{ display:flex; align-items:center; gap:8px; }
+
+button{
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 12px 14px;
+  border:1px solid var(--line);
+  background:#fafbff;
+  color:var(--text);
+  border-radius:14px;
+  cursor:pointer;
+  user-select:none;
+  font-weight: 650;
+  font-size: 0.95em;
+}
+button:active{ transform: translateY(1px); }
+button:hover{ border-color:#dfe3ea; }
+
+.btnIcon{ padding:0; display:grid; place-items:center; }
+.btnGhost{ background:#fff; }
+.btnPrimary{
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--line));
+  background: color-mix(in srgb, var(--primary) 10%, #ffffff);
+}
+.btnDanger{
+  border-color:#ffd6dd;
+  background:#fff7f8;
+  color:#c21c3a;
+}
+
+main{
+  flex:1;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  padding: 12px;
+  max-width: 980px;
+  margin: 0 auto;
+  width:100%;
+}
+
+.card{
+  flex:1;
+  min-height:0;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+.calHead{
+  padding:12px 12px 10px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.legend{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  color:var(--muted);
+  font-size: 0.85em;
+  flex-wrap:wrap;
+}
+.dot{
+  width:10px;height:10px;border-radius:999px;
+  display:inline-block;
+  vertical-align:middle;
+  margin-right:6px;
+}
+.hint{
+  color:var(--muted);
+  font-size: 0.85em;
+  font-weight:650;
+}
+
+/* ▼ 曜日表示：月火水木金土日（=日曜は右端） */
+.dow{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom:1px solid var(--line2);
+  background:#fff;
+}
+.dow div{
+  padding:10px 6px;
+  font-size: 0.9em;
+  color:var(--muted);
+  text-align:center;
+  font-weight:900;
+}
+.dow .sun{ color: color-mix(in srgb, var(--sun) 85%, #0000); }
+.dow .sat{ color: color-mix(in srgb, var(--sat) 85%, #0000); }
+
+/* ===== カレンダー：スワイプ用 ===== */
+.monthSwipe{
+  flex:1;
+  min-height:0;
+  overflow:hidden;
+  position:relative;
+  touch-action: pan-y;
+  background:#fff;
+}
+.monthTrack{
+  height:100%;
+  display:flex;
+  width:300%;
+  transform: translateX(-33.3333%);
+  will-change: transform;
+}
+.monthPanel{
+  width:33.3333%;
+  height:100%;
+  display:flex;
+}
+.monthPanel .grid{
+  flex:1;
+  min-height:0;
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr;
+}
+
+.cell{
+  border-right:1px solid var(--line2);
+  border-bottom:1px solid var(--line2);
+  padding:10px 8px 8px;
+  position:relative;
+  background:#fff;
+  cursor:pointer;
+  min-height:0 !important;
+}
+.cell:nth-child(7n){ border-right:none; }
+.cell:hover{ background:#fafbff; }
+.cell:active{ background:#f3f7ff; }
+.cell.muted{ background:#ffffff; color: var(--muted); opacity: 0.95; }
+.cell.today{ background: var(--today); }
+
+.dateRow{
+  display:grid;
+  place-items:center;
+  gap:4px;
+  margin-bottom:6px;
+  min-height: 34px;
+}
+.dateNum{
+  font-size: 0.95em;
+  font-weight: 900;
+  line-height:1;
+  color: var(--muted);
+}
+.cell.muted .dateNum{
+  color: var(--text);
+  opacity: 0.90;
+}
+
+/* ★ 土日祝の“日付文字色” */
+.cell.sat .dateNum{ color: var(--sat) !important; }
+.cell.sun .dateNum,
+.cell.holiday .dateNum{ color: var(--sun) !important; }
+
+/* 予定表示（タイトルタグ）。誤タップ拡大対策：ev側はタップ受けない */
+.ev{
+  display:flex;
+  align-items:center;
+  gap:0;
+  margin: 6px 0 0;
+  min-height: 30px;
+  pointer-events:none;
+  user-select:none;
+}
+.ev .bar{ display:none; }
+.ev .txt{
+  display:inline-block;
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 750;
+  font-size: clamp(18px, 5.5vw, 24px);
+  line-height: 1.1;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 14px rgba(0,0,0,.08);
+}
+.more{
+  margin-top:6px;
+  font-size: 0.85em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* ===== Backdrop ===== */
+.backdrop{
+  position:fixed;
+  inset:0;
+  background: rgba(17, 24, 39, .22);
+  display:none;
+  z-index:50;
+}
+.backdrop.show{ display:block; }
+
+/* ===== Fullscreen Sheet（下半分→全画面） ===== */
+.sheet{
+  position:fixed;
+  left:0;
+  right:0;
+  top:0;
+  bottom:0;
+  width:100%;
+  background:#fff;
+  border: none;
+  border-radius: 0;
+  box-shadow: 0 22px 60px rgba(0,0,0,.18);
+  overflow:hidden;
+  display:none;
+  z-index:60;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sheet.show{ display:block; }
+
+.sheetHead{
+  position:sticky;
+  top:0;
+  z-index:1;
+  padding:12px 12px 10px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  background:#fff;
+}
+.sheetTitle{
+  font-weight:950;
+  font-size: 1.05em;
+}
+.sheetBody{
+  padding:12px;
+  height: calc(100% - 58px);
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+label{
+  font-size: 0.85em;
+  color:var(--muted);
+  display:block;
+  margin: 10px 0 6px;
+  font-weight: 800;
+}
+input, select, textarea{
+  width:100%;
+  min-height: var(--tap);
+  border:1px solid var(--line);
+  background:#fafbff;
+  border-radius:14px;
+  padding:12px 12px;
+  outline:none;
+  font-size: 1.0em;
+  font-weight: 650;
+}
+select{ cursor:pointer; }
+textarea{ min-height: 96px; resize: vertical; }
+
+.formGrid{
+  display:grid;
+  grid-template-columns: 1fr 220px;
+  gap:10px;
+}
+
+.row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.helper{
+  font-size: 0.9em;
+  color:var(--muted);
+  margin: 10px 0 0;
+  font-weight: 650;
+}
+
+/* Event list */
+.list{
+  margin-top:12px;
+  border-top:1px dashed var(--line);
+  padding-top:12px;
+}
+.item{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  margin-bottom:10px;
+}
+.item:active{ background:#f7faff; }
+.itemLeft{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  min-width:0;
+  flex:1;
+}
+.itemBar{ display:none; }
+.itemTxt{ min-width:0; flex:1; }
+
+/* Bottom Sheet側のタイトルもタグ表示 */
+.itemTxt .t{
+  display:inline-block;
+  max-width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  font-weight: 800;
+  font-size: clamp(20px, 6vw, 26px);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 14px rgba(0,0,0,.08);
+}
+.itemTxt .s{
+  font-size: 0.9em;
+  color:var(--muted);
+  margin-top:8px;
+  font-weight: 750;
+}
+.itemActions{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+.smallBtn{
+  min-width:auto;
+  min-height: var(--tap);
+  padding:10px 12px;
+  border-radius:14px;
+  font-size: 0.9em;
+}
+.btnMiniPrimary{
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--line));
+  background: color-mix(in srgb, var(--primary) 10%, #ffffff);
+}
+
+/* Attachments */
+.attachZone{
+  margin-top:12px;
+  border:1px dashed var(--line);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+.attachZone .hint2{
+  font-size: 0.9em;
+  color:var(--muted);
+  margin:0 0 10px;
+  font-weight: 750;
+}
+.attachList{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap:10px;
+  margin-top:10px;
+}
+.attachCard{
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  background:#fff;
+}
+.attachThumb{
+  width:100%;
+  height:130px;
+  display:grid;
+  place-items:center;
+  background:#fafbff;
+  border-bottom:1px solid var(--line);
+}
+.attachThumb img{ max-width:100%; max-height:100%; display:block; }
+.pdfBadge{ font-weight:950; font-size: 1.0em; color:var(--muted); }
+.attachMeta{ padding:10px 10px 12px; }
+.attachName{
+  font-size: 0.9em;
+  font-weight: 900;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.attachBtns{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.attachBtns button{
+  min-height: var(--tap);
+  min-width:auto;
+  padding:9px 10px;
+  border-radius:14px;
+  font-size: 0.9em;
+}
+
+/* Viewer */
+.viewerBackdrop{
+  position:fixed;
+  inset:0;
+  background: rgba(17, 24, 39, .45);
+  display:none;
+  z-index:90;
+}
+.viewerBackdrop.show{ display:block; }
+.viewer{
+  position:fixed;
+  inset: 10px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow: 0 28px 80px rgba(0,0,0,.25);
+  display:none;
+  z-index:100;
+  overflow:hidden;
+}
+.viewer.show{ display:block; }
+.viewerHead{
+  height:56px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 12px;
+  gap:10px;
+}
+.viewerTitle{
+  font-weight:950;
+  font-size: 0.95em;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.viewerBody{ height:calc(100% - 56px); }
+.viewerBody embed, .viewerBody iframe{
+  width:100%;
+  height:100%;
+  border:none;
+}
+
+/* Toast */
+.toastWrap{
+  position:fixed;
+  left:50%;
+  transform:translateX(-50%);
+  top: calc(64px + env(safe-area-inset-top));
+  width:min(560px, calc(100% - 24px));
+  z-index:80;
+  pointer-events:none;
+}
+.toast{
+  pointer-events:auto;
+  margin-bottom:10px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:16px;
+  box-shadow: 0 14px 32px rgba(0,0,0,.14);
+  padding:12px 12px;
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+}
+.toast .b{ width:10px;height:10px;border-radius:999px;background:var(--primary);margin-top:6px; }
+.toast .c{ flex:1; min-width:0; }
+.toast .c .h{ font-weight:950; font-size: 0.95em; }
+.toast .c .p{ font-size: 0.9em; color:var(--muted); margin-top:4px; font-weight: 700; }
+.toast .x{
+  border:none; background:transparent;
+  min-width:auto; min-height:auto;
+  padding:4px 8px; border-radius:12px;
+  cursor:pointer;
+  font-weight: 900;
+}
+
+/* ===== Copy modal ===== */
+.modalBackdrop{
+  position:fixed;
+  inset:0;
+  background: rgba(17, 24, 39, .35);
+  display:none;
+  z-index:110;
+}
+.modalBackdrop.show{ display:block; }
+.modal{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow: 0 28px 80px rgba(0,0,0,.22);
+  display:none;
+  z-index:120;
+  overflow:hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.modal.show{ display:block; }
+.modalHead{
+  padding:12px 12px 10px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.modalTitle{
+  font-weight:950;
+  font-size: 1.0em;
+}
+.modalBody{
+  padding:12px;
+  max-height: min(74vh, 760px);
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+}
+.modalActions{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  padding: 0 12px 12px;
+}
+
+.quickAddRow{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+.quickAddRow button{
+  min-width:auto;
+  padding:10px 12px;
+}
+
+.pasteBox{
+  margin-top:12px;
+  border-top:1px dashed var(--line);
+  padding-top:12px;
+}
+.pasteBox textarea{
+  min-height: 96px;
+}
+
+/* Selected dates chips */
+.chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#fff;
+  font-weight:800;
+  font-size:0.9em;
+}
+.chip .x{
+  border:none;
+  background:transparent;
+  padding:2px 6px;
+  border-radius:10px;
+  min-width:auto;
+  min-height:auto;
+  font-weight:950;
+  cursor:pointer;
+}
+
+/* Custom calendar (Mon-first) */
+.calPick{
+  margin-top:12px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  background:#fff;
+}
+.calPickHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:10px;
+  border-bottom:1px solid var(--line2);
+  background:#fff;
+}
+.calPickTitle{
+  font-weight:950;
+  font-size:1.0em;
+}
+.calPickHead .btns{
+  display:flex; gap:8px; align-items:center;
+}
+.calPickDow{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  border-bottom:1px solid var(--line2);
+  background:#fff;
+}
+.calPickDow div{
+  padding:10px 6px;
+  font-size:0.85em;
+  font-weight:900;
+  color:var(--muted);
+  text-align:center;
+}
+.calPickDow .sat{ color: color-mix(in srgb, var(--sat) 85%, #0000); }
+.calPickDow .sun{ color: color-mix(in srgb, var(--sun) 85%, #0000); }
+
+.calPickGrid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  grid-auto-rows: 44px;
+}
+.calPickCell{
+  border-right:1px solid var(--line2);
+  border-bottom:1px solid var(--line2);
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color:var(--text);
+  background:#fff;
+  user-select:none;
+}
+.calPickCell:nth-child(7n){ border-right:none; }
+.calPickCell.muted{ color: var(--muted2); background:#fbfcff; }
+.calPickCell.today{ outline:2px solid #3b82f622; outline-offset:-2px; background:#f7fbff; }
+.calPickCell.selected{
+  background: color-mix(in srgb, var(--primary) 12%, #ffffff);
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, #ffffff);
+  outline-offset: -2px;
+}
+.calPickCell.disabled{
+  opacity: 0.35;
+  pointer-events:none;
+}
+.calPickCell:active{ background:#f3f7ff; }
+
+/* ★ コピー先カレンダー（土日祝の文字色） */
+.calPickCell.sat{ color: var(--sat) !important; }
+.calPickCell.sun,
+.calPickCell.holiday{ color: var(--sun) !important; }
+
+@media (max-width: 640px){
+  main{ padding: 10px; }
+  .formGrid{ grid-template-columns: 1fr; }
+  .monthTitle{ min-width: 8.5em; }
+  .viewer{ inset: 8px; }
+}
+@media (pointer: coarse){
+  body{ font-size: clamp(17px, 4.2vw, 21px); }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <div class="brandTitle">剣道予定表</div>
+  </div>
+
+  <div class="nav" aria-label="月移動">
+    <button class="btnIcon btnGhost" id="prevBtn" title="前の月">◀</button>
+    <div class="monthTitle" id="monthTitle">----</div>
+    <button class="btnIcon btnGhost" id="nextBtn" title="次の月">▶</button>
+    <button class="btnPrimary" id="todayBtn" title="今日に戻る">今日</button>
+  </div>
+
+  <div class="actions">
+    <button class="btnPrimary btnIcon" id="addQuickBtn" title="今日に予定を追加">＋</button>
+  </div>
+</header>
+
+<div class="toastWrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
+<main>
+  <div class="card">
+    <div class="calHead">
+      <div class="legend" id="legend"></div>
+      <div class="hint" id="hintText">日付タップで予定を追加/編集（画像・PDF添付OK）</div>
+    </div>
+
+    <!-- 月火水木金土日（右端が日曜） -->
+    <div class="dow">
+      <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div><div class="sun">日</div>
+    </div>
+
+    <div class="monthSwipe" id="monthSwipe" aria-label="カレンダー（月スワイプ対応）">
+      <div class="monthTrack" id="monthTrack"></div>
+    </div>
+  </div>
+</main>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Fullscreen sheet -->
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheetHead">
+    <div class="sheetTitle" id="sheetTitle">----</div>
+    <div class="row">
+      <button class="smallBtn btnGhost" id="closeSheetBtn" title="閉じる">閉じる</button>
+    </div>
+  </div>
+
+  <div class="sheetBody">
+    <div class="helper" id="editModeInfo" style="display:none; margin-top:0;">
+      ✎ 編集中：<b id="editModeTitle"></b>
+    </div>
+
+    <div class="formGrid" aria-label="予定フォーム">
+      <div>
+        <label for="evTitle">タイトル（必須）</label>
+        <input id="evTitle" type="text" placeholder="例：稽古 18:00 / 試合（○○大会）" maxlength="60" />
+      </div>
+      <div>
+        <label for="evCat">色（カテゴリ）</label>
+        <select id="evCat"></select>
+      </div>
+    </div>
+
+    <label for="evNote">メモ（任意）</label>
+    <textarea id="evNote" placeholder="例：集合時間、持ち物、場所など"></textarea>
+
+    <div class="attachZone" id="attachZone">
+      <p class="hint2">
+        添付：画像/PDFを <b>貼り付け（長押し→ペースト / Ctrl+V）</b> または <b>ファイル選択</b> で追加（この予定に紐づきます）
+      </p>
+      <div class="row">
+        <input id="fileInput" type="file" accept="image/*,application/pdf" multiple />
+        <button class="smallBtn btnGhost" id="clearPendingBtn" title="今回追加予定の添付をクリア">添付クリア</button>
+      </div>
+      <div class="helper" id="pendingInfo"></div>
+      <div class="attachList" id="pendingAttachList" aria-label="追加予定の添付一覧"></div>
+    </div>
+
+    <div class="row" style="margin-top:12px; justify-content:flex-end;">
+      <button class="btnPrimary" id="saveEventBtn">追加</button>
+      <button class="btnGhost" id="cancelEditBtn" style="display:none;">編集解除</button>
+    </div>
+
+    <div class="list" id="eventList" aria-label="その日の予定一覧"></div>
+  </div>
+</section>
+
+<!-- Viewer -->
+<div class="viewerBackdrop" id="viewerBackdrop"></div>
+<section class="viewer" id="viewer" role="dialog" aria-modal="true" aria-labelledby="viewerTitle">
+  <div class="viewerHead">
+    <div class="viewerTitle" id="viewerTitle">----</div>
+    <button class="smallBtn btnGhost" id="closeViewerBtn">閉じる</button>
+  </div>
+  <div class="viewerBody" id="viewerBody"></div>
+</section>
+
+<!-- Copy modal -->
+<div class="modalBackdrop" id="copyBackdrop"></div>
+<section class="modal" id="copyModal" role="dialog" aria-modal="true" aria-labelledby="copyModalTitle">
+  <div class="modalHead">
+    <div class="modalTitle" id="copyModalTitle">複数日付にコピー</div>
+    <button class="smallBtn btnGhost" id="closeCopyModalBtn">閉じる</button>
+  </div>
+
+  <div class="modalBody">
+    <div class="helper" id="copyFromInfo" style="margin-top:0;">----</div>
+
+    <label>コピー先（複数選択）</label>
+    <div class="helper" style="margin-top:0;">カレンダーをタップして日付を追加できます（もう一度タップで解除）</div>
+
+    <div class="chips" id="copyChips" aria-label="選択中の日付"></div>
+
+    <!-- 独自カレンダー（曜日：月火水木金土日） -->
+    <div class="calPick" id="copyPicker" aria-label="コピー先日付カレンダー（独自）">
+      <div class="calPickHead">
+        <div class="calPickTitle" id="copyPickerTitle">----</div>
+        <div class="btns">
+          <button class="smallBtn btnGhost" id="copyPickPrevBtn" title="前の月">◀</button>
+          <button class="smallBtn btnGhost" id="copyPickTodayBtn" title="今月">今月</button>
+          <button class="smallBtn btnGhost" id="copyPickNextBtn" title="次の月">▶</button>
+        </div>
+      </div>
+      <div class="calPickDow">
+        <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div><div class="sun">日</div>
+      </div>
+      <div class="calPickGrid" id="copyPickerGrid"></div>
+    </div>
+
+    <div class="quickAddRow">
+      <button class="smallBtn btnGhost" id="addNextDayBtn">翌日</button>
+      <button class="smallBtn btnGhost" id="addNextWeekBtn">1週間後</button>
+      <button class="smallBtn btnGhost" id="addNextMonthBtn">1か月後</button>
+      <button class="smallBtn btnGhost" id="clearDatesBtn">クリア</button>
+    </div>
+
+    <div class="pasteBox">
+      <label for="copyPaste">まとめて入力（改行/カンマ区切りで日付）</label>
+      <textarea id="copyPaste" placeholder="例：
+2026-03-05
+2026-03-12, 2026-03-19"></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button class="smallBtn btnGhost" id="applyPasteBtn">入力を反映</button>
+      </div>
+      <div class="helper" id="copyHelpText">※ 同じ日付・元の日付は自動で除外します。</div>
+    </div>
+  </div>
+
+  <div class="modalActions">
+    <button class="btnGhost" id="cancelCopyBtn">キャンセル</button>
+    <button class="btnPrimary" id="confirmCopyBtn">コピーする</button>
+  </div>
+</section>
+
+<script>
+/* =========================================================
+   Storage keys
+========================================================= */
+const LS_KEY   = "kendo_tt_v4";
+const IDB_NAME = "kendo_schedule_db_v1";
+const IDB_STORE = "blobs";
+
+/* 添付上限 */
+const LIMIT_FILE_BYTES = 8 * 1024 * 1024;
+const LIMIT_EVENT_ATTACH_BYTES = 24 * 1024 * 1024;
+
+/* =========================================================
+   Categories
+========================================================= */
+const DEFAULT_CATS = [
+  { id:"keiko", name:"稽古", color:"#3b82f6" },
+  { id:"shime", name:"締切", color:"#10b981" },
+  { id:"shiai", name:"試合", color:"#ef4444" },
+  { id:"kaijo", name:"会場", color:"#f59e0b" },
+  { id:"free1", name:"任意1", color:"#8b5cf6" },
+  { id:"free2", name:"任意2", color:"#fbbf24" }
+];
+
+/* =========================================================
+   Helpers
+========================================================= */
+function safeJsonParse(text, fallback){
+  try{
+    const v = JSON.parse(text);
+    return (v && typeof v === "object") ? v : fallback;
+  }catch(_e){ return fallback; }
+}
+function uuidLike(){
+  const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1);
+  return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
+}
+function pad2(n){ return String(n).padStart(2,"0"); }
+
+/* =========================================================
+   Holidays (Japan) 2026-2027
+========================================================= */
+const HOLIDAYS_2026_2027 = new Set([
+  // --- 2026 ---
+  "2026-01-01","2026-01-12","2026-02-11","2026-02-23","2026-03-20",
+  "2026-04-29","2026-05-03","2026-05-04","2026-05-05","2026-05-06",
+  "2026-07-20","2026-08-11",
+  "2026-09-21","2026-09-22","2026-09-23",
+  "2026-10-12","2026-11-03","2026-11-23",
+
+  // --- 2027 ---
+  "2027-01-01","2027-01-11","2027-02-11","2027-02-23",
+  "2027-03-21","2027-03-22",
+  "2027-04-29","2027-05-03","2027-05-04","2027-05-05",
+  "2027-07-19","2027-08-11","2027-09-20","2027-09-23",
+  "2027-10-11","2027-11-03","2027-11-23"
+]);
+
+function ymdToDate(dateStr){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if(!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+function isHoliday(dateStr){
+  return HOLIDAYS_2026_2027.has(dateStr);
+}
+
+/* Date helpers */
+function ymToDate(ym){
+  const m = /^(\d{4})-(\d{2})$/.exec(ym);
+  if(!m) return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  return new Date(Number(m[1]), Number(m[2]) - 1, 1);
+}
+function formatYM(date){
+  return `${date.getFullYear()}-${pad2(date.getMonth()+1)}`;
+}
+function formatJPMonthTitle(date){
+  return `${date.getFullYear()}年 ${date.getMonth()+1}月`;
+}
+function ymd(date){
+  return `${date.getFullYear()}-${pad2(date.getMonth()+1)}-${pad2(date.getDate())}`;
+}
+function daysInMonth(y, m0){
+  return new Date(y, m0+1, 0).getDate();
+}
+function startDowSun0(y, m0){
+  return new Date(y, m0, 1).getDay(); // 0=Sun
+}
+function startDowMon0(y, m0){
+  // 0=Mon ... 6=Sun
+  const sun0 = startDowSun0(y, m0);
+  return (sun0 + 6) % 7;
+}
+function formatDayTitle(dateStr){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if(!m) return dateStr;
+  const d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  const w = ["日","月","火","水","木","金","土"][d.getDay()];
+  return `${m[1]}年${Number(m[2])}月${Number(m[3])}日（${w}）`;
+}
+function parseYMDList(text){
+  const raw = (text || "")
+    .split(/[\n, ]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  const out = [];
+  for(const s of raw){
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s)) out.push(s);
+  }
+  return out;
+}
+function addDaysToYMD(baseYmd, deltaDays){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(baseYmd);
+  if(!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  d.setDate(d.getDate() + deltaDays);
+  return ymd(d);
+}
+function addMonthsToYMD(baseYmd, deltaMonths){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(baseYmd);
+  if(!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  d.setMonth(d.getMonth() + deltaMonths);
+  return ymd(d);
+}
+
+/* 色に応じて文字色を自動決定（可読性優先） */
+function pickTextColor(bgHex){
+  const hex = (bgHex || "").replace("#","").trim();
+  if(!/^[0-9a-fA-F]{6}$/.test(hex)) return "#111827";
+  const r = parseInt(hex.slice(0,2),16)/255;
+  const g = parseInt(hex.slice(2,4),16)/255;
+  const b = parseInt(hex.slice(4,6),16)/255;
+  const lum = 0.2126*r + 0.7152*g + 0.0722*b;
+  return lum < 0.55 ? "#ffffff" : "#111827";
+}
+
+/* =========================================================
+   IndexedDB
+========================================================= */
+function idbOpen(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(IDB_STORE)){
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
+  });
+}
+async function idbPutBlob(key, blob){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.onerror = () => reject(tx.error || new Error("IDB tx error"));
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.put(blob, key);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error || new Error("IDB put error"));
+  });
+}
+async function idbGetBlob(key){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readonly");
+    tx.onerror = () => reject(tx.error || new Error("IDB tx error"));
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error || new Error("IDB get error"));
+  });
+}
+async function idbDeleteBlob(key){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.onerror = () => reject(tx.error || new Error("IDB tx error"));
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.delete(key);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error || new Error("IDB delete error"));
+  });
+}
+
+/* =========================================================
+   State (localStorage)
+========================================================= */
+function loadState(){
+  const raw = localStorage.getItem(LS_KEY);
+  const st = safeJsonParse(raw, null);
+  if(st && Array.isArray(st.events) && typeof st.viewYM === "string"){
+    return st;
+  }
+  const today = new Date();
+  const y = today.getFullYear();
+  const m0 = today.getMonth();
+  const mkDate = (yy, mm0, dd) => `${yy}-${pad2(mm0+1)}-${pad2(dd)}`;
+  const demo = {
+    viewYM: `${y}-${pad2(m0+1)}`,
+    settings: { categories: DEFAULT_CATS.map(c => ({...c})) },
+    events: [
+      { id: uuidLike(), date: mkDate(y,m0,3),  title:"稽古 18:00", catId:"keiko", note:"", createdAt:Date.now(), attachments:[] },
+      { id: uuidLike(), date: mkDate(y,m0,10), title:"試合（地区大会）", catId:"shiai", note:"集合 8:30", createdAt:Date.now()+1, attachments:[] }
+    ]
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(demo));
+  return demo;
+}
+function saveState(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  }catch(e){
+    toast("保存エラー", "保存に失敗しました（容量/設定/ブラウザをご確認ください）。");
+    throw e;
+  }
+}
+
+/* Settings */
+function ensureSettings(){
+  if(!state.settings || typeof state.settings !== "object") state.settings = {};
+  if(!Array.isArray(state.settings.categories) || state.settings.categories.length !== 6){
+    state.settings.categories = DEFAULT_CATS.map(c => ({...c}));
+  }else{
+    const byId = new Map(state.settings.categories.map(c => [c.id, c]));
+    state.settings.categories = DEFAULT_CATS.map(def => {
+      const cur = byId.get(def.id);
+      return {
+        id: def.id,
+        name: (cur && typeof cur.name === "string" && cur.name.trim()) ? cur.name.trim() : def.name,
+        color: (cur && typeof cur.color === "string" && /^#([0-9a-fA-F]{6})$/.test(cur.color)) ? cur.color : def.color
+      };
+    });
+  }
+}
+function getCats(){ ensureSettings(); return state.settings.categories; }
+function catById(id){ return getCats().find(c => c.id === id) || null; }
+function getEventColor(ev){
+  const cid = (ev && typeof ev.catId === "string") ? ev.catId : "keiko";
+  const c = catById(cid);
+  return c ? c.color : DEFAULT_CATS[0].color;
+}
+
+/* =========================================================
+   DOM
+========================================================= */
+const el = {
+  monthTitle: document.getElementById("monthTitle"),
+  prevBtn: document.getElementById("prevBtn"),
+  nextBtn: document.getElementById("nextBtn"),
+  todayBtn: document.getElementById("todayBtn"),
+  addQuickBtn: document.getElementById("addQuickBtn"),
+
+  legend: document.getElementById("legend"),
+
+  monthSwipe: document.getElementById("monthSwipe"),
+  monthTrack: document.getElementById("monthTrack"),
+
+  backdrop: document.getElementById("backdrop"),
+  sheet: document.getElementById("sheet"),
+  sheetTitle: document.getElementById("sheetTitle"),
+  closeSheetBtn: document.getElementById("closeSheetBtn"),
+
+  editModeInfo: document.getElementById("editModeInfo"),
+  editModeTitle: document.getElementById("editModeTitle"),
+
+  evTitle: document.getElementById("evTitle"),
+  evCat: document.getElementById("evCat"),
+  evNote: document.getElementById("evNote"),
+  saveEventBtn: document.getElementById("saveEventBtn"),
+  cancelEditBtn: document.getElementById("cancelEditBtn"),
+  eventList: document.getElementById("eventList"),
+
+  fileInput: document.getElementById("fileInput"),
+  attachZone: document.getElementById("attachZone"),
+  clearPendingBtn: document.getElementById("clearPendingBtn"),
+  pendingInfo: document.getElementById("pendingInfo"),
+  pendingAttachList: document.getElementById("pendingAttachList"),
+
+  viewerBackdrop: document.getElementById("viewerBackdrop"),
+  viewer: document.getElementById("viewer"),
+  viewerTitle: document.getElementById("viewerTitle"),
+  viewerBody: document.getElementById("viewerBody"),
+  closeViewerBtn: document.getElementById("closeViewerBtn"),
+
+  toastWrap: document.getElementById("toastWrap"),
+
+  /* copy modal */
+  copyBackdrop: document.getElementById("copyBackdrop"),
+  copyModal: document.getElementById("copyModal"),
+  copyModalTitle: document.getElementById("copyModalTitle"),
+  copyFromInfo: document.getElementById("copyFromInfo"),
+
+  copyChips: document.getElementById("copyChips"),
+  copyPickerTitle: document.getElementById("copyPickerTitle"),
+  copyPickerGrid: document.getElementById("copyPickerGrid"),
+  copyPickPrevBtn: document.getElementById("copyPickPrevBtn"),
+  copyPickTodayBtn: document.getElementById("copyPickTodayBtn"),
+  copyPickNextBtn: document.getElementById("copyPickNextBtn"),
+
+  addNextDayBtn: document.getElementById("addNextDayBtn"),
+  addNextWeekBtn: document.getElementById("addNextWeekBtn"),
+  addNextMonthBtn: document.getElementById("addNextMonthBtn"),
+  clearDatesBtn: document.getElementById("clearDatesBtn"),
+
+  copyPaste: document.getElementById("copyPaste"),
+  applyPasteBtn: document.getElementById("applyPasteBtn"),
+  copyHelpText: document.getElementById("copyHelpText"),
+  closeCopyModalBtn: document.getElementById("closeCopyModalBtn"),
+  cancelCopyBtn: document.getElementById("cancelCopyBtn"),
+  confirmCopyBtn: document.getElementById("confirmCopyBtn")
+};
+
+/* =========================================================
+   Runtime state
+========================================================= */
+let state = loadState();
+ensureSettings();
+
+let viewDate = ymToDate(state.viewYM);
+let selectedDate = ymd(new Date());
+
+let pendingAttachments = [];
+const blobUrlCache = new Map();
+
+let editingEventId = null;
+
+let isSwipingMonth = false;
+let swipeJustHappenedAt = 0;
+
+/* Copy modal runtime */
+let copyEventId = null;
+let copySelected = new Set(); // YYYY-MM-DD
+let copyPickYM = formatYM(new Date()); // picker表示月（YYYY-MM)
+
+/* =========================================================
+   Toast
+========================================================= */
+function toast(title, msg){
+  const box = document.createElement("div");
+  box.className = "toast";
+  const b = document.createElement("div"); b.className = "b";
+  const c = document.createElement("div"); c.className = "c";
+  const h = document.createElement("div"); h.className = "h"; h.textContent = title;
+  const p = document.createElement("div"); p.className = "p"; p.textContent = msg;
+  c.appendChild(h); c.appendChild(p);
+
+  const x = document.createElement("button");
+  x.className = "x";
+  x.textContent = "✕";
+  x.addEventListener("click", () => box.remove());
+
+  box.appendChild(b); box.appendChild(c); box.appendChild(x);
+  el.toastWrap.appendChild(box);
+
+  setTimeout(() => { if(box.isConnected) box.remove(); }, 3200);
+}
+
+/* =========================================================
+   Legend + Select
+========================================================= */
+function renderLegendAndSelect(){
+  const cats = getCats();
+  el.legend.innerHTML = "";
+  for(const c of cats){
+    const s = document.createElement("span");
+    const d = document.createElement("span");
+    d.className = "dot";
+    d.style.background = c.color;
+    s.appendChild(d);
+    s.appendChild(document.createTextNode(c.name));
+    el.legend.appendChild(s);
+  }
+
+  el.evCat.innerHTML = "";
+  for(const c of cats){
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    el.evCat.appendChild(opt);
+  }
+}
+
+/* =========================================================
+   Month grid helpers
+========================================================= */
+function groupEventsByDate(events){
+  const map = new Map();
+  for(const ev of (events||[])){
+    if(!ev || typeof ev.date !== "string") continue;
+    if(!map.has(ev.date)) map.set(ev.date, []);
+    map.get(ev.date).push(ev);
+  }
+  for(const [k, arr] of map.entries()){
+    arr.sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+    map.set(k, arr);
+  }
+  return map;
+}
+
+/* =========================================================
+   tap binding
+========================================================= */
+function bindTap(elm, handler){
+  let active = false;
+  let moved = false;
+  let startX = 0, startY = 0;
+
+  elm.addEventListener("pointerdown", (e) => {
+    active = true;
+    moved = false;
+    startX = e.clientX;
+    startY = e.clientY;
+  }, {passive:true});
+
+  elm.addEventListener("pointermove", (e) => {
+    if(!active) return;
+    if(Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8){
+      moved = true;
+    }
+  }, {passive:true});
+
+  elm.addEventListener("pointerup", (e) => {
+    if(!active) return;
+    active = false;
+    if(moved) return;
+    handler(e);
+  });
+
+  elm.addEventListener("pointercancel", () => { active = false; }, {passive:true});
+
+  elm.addEventListener("keydown", (e) => {
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      handler(e);
+    }
+  });
+}
+
+/* =========================================================
+   Render (3 panels)
+========================================================= */
+function render(){
+  state.viewYM = formatYM(viewDate);
+  try{ saveState(); }catch(_e){}
+  el.monthTitle.textContent = formatJPMonthTitle(viewDate);
+  renderMonthPanels();
+}
+
+function renderMonthPanels(){
+  el.monthTrack.innerHTML = "";
+
+  const prev = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1);
+  const cur  = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  const next = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1);
+
+  const months = [prev, cur, next];
+
+  for(const d of months){
+    const panel = document.createElement("div");
+    panel.className = "monthPanel";
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+
+    panel.appendChild(grid);
+    el.monthTrack.appendChild(panel);
+
+    renderGrid(grid, d);
+  }
+
+  el.monthTrack.style.transition = "none";
+  el.monthTrack.style.transform = "translateX(-33.3333%)";
+}
+
+/* ▼ 月火水木金土日（Mon-first）の列に合わせて描画 */
+function renderGrid(targetGridEl, baseDate){
+  const y = baseDate.getFullYear();
+  const m0 = baseDate.getMonth();
+  const firstDow = startDowMon0(y, m0); // 0=Mon ... 6=Sun
+  const dim = daysInMonth(y, m0);
+
+  const prev = new Date(y, m0-1, 1);
+  const prevDim = daysInMonth(prev.getFullYear(), prev.getMonth());
+
+  const weeks = Math.ceil((firstDow + dim) / 7);
+  const totalCells = weeks * 7;
+  targetGridEl.style.gridTemplateRows = `repeat(${weeks}, 1fr)`;
+
+  const todayStr = ymd(new Date());
+  const map = groupEventsByDate(state.events);
+
+  targetGridEl.innerHTML = "";
+  for(let i=0;i<totalCells;i++){
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.setAttribute("role", "button");
+    cell.setAttribute("tabindex", "0");
+
+    let dayNum, cellDateStr;
+
+    if(i < firstDow){
+      dayNum = prevDim - (firstDow - 1 - i);
+      const d = new Date(y, m0-1, dayNum);
+      cellDateStr = ymd(d);
+      cell.classList.add("muted");
+    }else if(i >= firstDow + dim){
+      dayNum = i - (firstDow + dim) + 1;
+      const d = new Date(y, m0+1, dayNum);
+      cellDateStr = ymd(d);
+      cell.classList.add("muted");
+    }else{
+      dayNum = i - firstDow + 1;
+      const d = new Date(y, m0, dayNum);
+      cellDateStr = ymd(d);
+    }
+
+    if(cellDateStr === todayStr) cell.classList.add("today");
+
+    const dateRow = document.createElement("div");
+    dateRow.className = "dateRow";
+
+    const dateNumEl = document.createElement("div");
+    dateNumEl.className = "dateNum";
+    dateNumEl.textContent = String(dayNum);
+
+    // ★ 土日祝の色分け（優先：祝日＞日曜＞土曜）
+    const dObj = ymdToDate(cellDateStr);
+    const dow = dObj ? dObj.getDay() : null; // 0=Sun ... 6=Sat
+    if(isHoliday(cellDateStr)){
+      cell.classList.add("holiday");
+    }else if(dow === 0){
+      cell.classList.add("sun");
+    }else if(dow === 6){
+      cell.classList.add("sat");
+    }
+
+    dateRow.appendChild(dateNumEl);
+    cell.appendChild(dateRow);
+
+    const evs = map.get(cellDateStr) || [];
+    const showMax = 2;
+    for(const ev of evs.slice(0, showMax)){
+      const evEl = document.createElement("div");
+      evEl.className = "ev";
+
+      const txt = document.createElement("div");
+      txt.className = "txt";
+      txt.textContent = ev.title || "(無題)";
+      const bg = getEventColor(ev);
+      txt.style.background = bg;
+      txt.style.color = pickTextColor(bg);
+
+      evEl.appendChild(txt);
+      cell.appendChild(evEl);
+    }
+    if(evs.length > showMax){
+      const more = document.createElement("div");
+      more.className = "more";
+      more.textContent = `+${evs.length - showMax}`;
+      cell.appendChild(more);
+    }
+
+    bindTap(cell, () => {
+      const now = Date.now();
+      if(isSwipingMonth) return;
+      if(now - swipeJustHappenedAt < 220) return;
+      openDay(cellDateStr);
+    });
+
+    targetGridEl.appendChild(cell);
+  }
+}
+
+/* =========================================================
+   Smooth swipe
+========================================================= */
+function enableSmoothMonthSwipe(){
+  const track = el.monthTrack;
+  const area  = el.monthSwipe;
+
+  let startX=0, startY=0;
+  let dx=0;
+  let dragging=false;
+  let locked=null;
+
+  const COMMIT_RATIO = 0.22;
+
+  function canSwipe(){
+    if(el.sheet.classList.contains("show")) return false;
+    if(el.viewer.classList.contains("show")) return false;
+    if(el.copyModal.classList.contains("show")) return false;
+    return true;
+  }
+
+  function point(e){
+    const t = (e.touches && e.touches[0]) ? e.touches[0] :
+              (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : e;
+    return {x:t.clientX, y:t.clientY};
+  }
+
+  function toOneWidth(){ return area.clientWidth; }
+  function baseOffset(){ return -toOneWidth(); }
+  function setTransform(px){ track.style.transform = `translateX(${px}px)`; }
+
+  function onStart(e){
+    if(!canSwipe()) return;
+    locked = null;
+    dragging = true;
+    dx = 0;
+    const p = point(e);
+    startX = p.x; startY = p.y;
+    track.style.transition = "none";
+    isSwipingMonth = false;
+  }
+
+  function onMove(e){
+    if(!dragging) return;
+
+    const p = point(e);
+    const mx = p.x - startX;
+    const my = p.y - startY;
+
+    if(!locked){
+      if(Math.abs(mx) < 6 && Math.abs(my) < 6) return;
+      locked = (Math.abs(mx) > Math.abs(my) * 1.05) ? "h" : "v";
+    }
+    if(locked !== "h") return;
+
+    if(Math.abs(mx) > 10) isSwipingMonth = true;
+    dx = mx;
+
+    setTransform(baseOffset() + dx);
+  }
+
+  function snapTo(index){
+    const w = toOneWidth();
+    const px = -w * index;
+    track.style.transition = "transform 220ms ease";
+    setTransform(px);
+  }
+
+  function commit(deltaMonth){
+    swipeJustHappenedAt = Date.now();
+    setTimeout(() => {
+      viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+deltaMonth, 1);
+      render();
+      isSwipingMonth = false;
+    }, 230);
+  }
+
+  function onEnd(){
+    if(!dragging) return;
+    dragging = false;
+
+    if(locked !== "h"){
+      isSwipingMonth = false;
+      return;
+    }
+
+    const w = toOneWidth();
+    const ratio = dx / w;
+
+    if(ratio <= -COMMIT_RATIO){
+      snapTo(2);
+      commit(+1);
+      return;
+    }
+    if(ratio >= COMMIT_RATIO){
+      snapTo(0);
+      commit(-1);
+      return;
+    }
+
+    snapTo(1);
+    swipeJustHappenedAt = Date.now();
+    setTimeout(() => { isSwipingMonth = false; }, 240);
+  }
+
+  area.addEventListener("touchstart", onStart, {passive:true});
+  area.addEventListener("touchmove", onMove, {passive:true});
+  area.addEventListener("touchend", onEnd, {passive:true});
+  area.addEventListener("touchcancel", onEnd, {passive:true});
+
+  area.addEventListener("pointerdown", onStart, {passive:true});
+  area.addEventListener("pointermove", onMove, {passive:true});
+  area.addEventListener("pointerup", onEnd, {passive:true});
+  area.addEventListener("pointercancel", onEnd, {passive:true});
+
+  window.addEventListener("resize", () => {
+    if(el.monthTrack.children.length){
+      track.style.transition = "none";
+      track.style.transform = "translateX(-33.3333%)";
+    }
+  }, {passive:true});
+}
+
+/* =========================================================
+   Sheet open/close（全画面）
+========================================================= */
+function showSheet(){
+  el.backdrop.classList.add("show");
+  el.sheet.classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+function hideSheet(){
+  el.backdrop.classList.remove("show");
+  el.sheet.classList.remove("show");
+  document.body.style.overflow = "";
+  cancelEdit();
+  clearPending(); // 保存してない一時添付は消す
+}
+
+function openDay(dateStr){
+  selectedDate = dateStr;
+  el.sheetTitle.textContent = formatDayTitle(dateStr);
+
+  cancelEdit();
+  el.evTitle.value = "";
+  el.evCat.value = "keiko";
+  el.evNote.value = "";
+
+  clearPending(); // 保存してない一時添付は消す
+
+  renderDayList();
+  showSheet();
+  setTimeout(() => el.evTitle.focus(), 0);
+}
+
+/* =========================================================
+   Pending attachments
+========================================================= */
+function revokeUrl(url){
+  if(url && typeof url === "string"){
+    try{ URL.revokeObjectURL(url); }catch(_e){}
+  }
+}
+
+/**
+ * ★ 重要修正：
+ *  - 保存後に clearPending() すると、IDBのblobKeyまで消してしまい「添付が見つかりません」になる
+ *  - deleteBlobs=false の時は、プレビューURLだけ破棄してIDBは残す
+ */
+function clearPending({ deleteBlobs = true } = {}){
+  for(const a of pendingAttachments){
+    revokeUrl(a.previewUrl);
+    if(deleteBlobs && a.blobKey) idbDeleteBlob(a.blobKey).catch(()=>{});
+  }
+  pendingAttachments = [];
+  el.fileInput.value = "";
+  renderPendingAttachments();
+}
+
+function renderPendingAttachments(){
+  const total = pendingAttachments.reduce((s,a)=>s+(a.size||0),0);
+  const count = pendingAttachments.length;
+
+  el.pendingInfo.textContent = count
+    ? `追加予定の添付：${count}件（合計 約${Math.ceil(total/1024)}KB）`
+    : `追加予定の添付：なし`;
+
+  el.pendingAttachList.innerHTML = "";
+  for(const att of pendingAttachments){
+    el.pendingAttachList.appendChild(renderAttachmentCardPending(att));
+  }
+}
+function renderAttachmentCardPending(att){
+  const card = document.createElement("div");
+  card.className = "attachCard";
+
+  const thumb = document.createElement("div");
+  thumb.className = "attachThumb";
+
+  if(att.mime && att.mime.startsWith("image/")){
+    const img = document.createElement("img");
+    img.alt = att.name || "画像";
+    img.src = att.previewUrl || "";
+    thumb.appendChild(img);
+  }else{
+    const b = document.createElement("div");
+    b.className = "pdfBadge";
+    b.textContent = "PDF";
+    thumb.appendChild(b);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "attachMeta";
+
+  const name = document.createElement("div");
+  name.className = "attachName";
+  name.textContent = att.name || "(無名)";
+
+  const btns = document.createElement("div");
+  btns.className = "attachBtns";
+
+  const openBtn = document.createElement("button");
+  openBtn.className = "smallBtn btnGhost";
+  openBtn.textContent = "開く";
+  bindTap(openBtn, () => openAttachment(att.name, att.mime, att.blobKey));
+
+  const rmBtn = document.createElement("button");
+  rmBtn.className = "smallBtn btnDanger";
+  rmBtn.textContent = "削除";
+  bindTap(rmBtn, async () => {
+    if(!confirm("この添付を削除しますか？")) return;
+    await deletePending(att.id);
+  });
+
+  btns.appendChild(openBtn);
+  btns.appendChild(rmBtn);
+
+  meta.appendChild(name);
+  meta.appendChild(btns);
+
+  card.appendChild(thumb);
+  card.appendChild(meta);
+  return card;
+}
+async function deletePending(attId){
+  const att = pendingAttachments.find(a => a.id === attId);
+  if(!att) return;
+  if(att.blobKey) await idbDeleteBlob(att.blobKey).catch(()=>{});
+  revokeUrl(att.previewUrl);
+  pendingAttachments = pendingAttachments.filter(a => a.id !== attId);
+  renderPendingAttachments();
+}
+async function addFilesAsPending(files){
+  if(!files || !files.length) return;
+
+  for(const f of files){
+    const mime = f.type || "";
+    const isImg = mime.startsWith("image/");
+    const isPdf = mime === "application/pdf";
+
+    if(!isImg && !isPdf){
+      toast("未対応の形式", "画像またはPDFのみ添付できます。");
+      continue;
+    }
+    if(f.size > LIMIT_FILE_BYTES){
+      toast("ファイルが大きすぎます", "8MB以下にして再度お試しください。");
+      continue;
+    }
+
+    const currentTotal = pendingAttachments.reduce((s,a)=>s+(a.size||0),0);
+    if(currentTotal + f.size > LIMIT_EVENT_ATTACH_BYTES){
+      toast("添付が大きすぎます", "この予定の添付合計が上限を超えます。削除して調整してください。");
+      continue;
+    }
+
+    const blobKey = uuidLike();
+    try{
+      await idbPutBlob(blobKey, f);
+    }catch(_e){
+      toast("保存失敗", "添付をIndexedDBに保存できませんでした。");
+      continue;
+    }
+
+    const previewUrl = URL.createObjectURL(f);
+
+    pendingAttachments.push({
+      id: uuidLike(),
+      name: f.name || (isPdf ? "document.pdf" : "image"),
+      mime: mime || (isPdf ? "application/pdf" : "image/*"),
+      size: f.size,
+      blobKey,
+      previewUrl
+    });
+  }
+  renderPendingAttachments();
+}
+function handlePaste(e){
+  const dt = e.clipboardData;
+  if(!dt) return;
+
+  const files = [];
+  if(dt.files && dt.files.length){
+    for(const f of dt.files) files.push(f);
+  }else if(dt.items && dt.items.length){
+    for(const it of dt.items){
+      if(it.kind === "file"){
+        const f = it.getAsFile();
+        if(f) files.push(f);
+      }
+    }
+  }
+  if(files.length){
+    e.preventDefault();
+    addFilesAsPending(files);
+  }
+}
+
+/* =========================================================
+   Viewer
+========================================================= */
+async function getObjectUrl(blobKey){
+  if(!blobKey) return null;
+  const cached = blobUrlCache.get(blobKey);
+  if(cached) return cached;
+
+  const blob = await idbGetBlob(blobKey).catch(()=>null);
+  if(!blob) return null;
+
+  const url = URL.createObjectURL(blob);
+  blobUrlCache.set(blobKey, url);
+  return url;
+}
+async function openAttachment(name, mime, blobKey){
+  const url = await getObjectUrl(blobKey);
+  if(!url){
+    toast("表示できません", "添付データが見つかりませんでした。");
+    return;
+  }
+
+  el.viewerTitle.textContent = name || "添付";
+  el.viewerBody.innerHTML = "";
+
+  if(mime === "application/pdf"){
+    const embed = document.createElement("embed");
+    embed.type = "application/pdf";
+    embed.src = url;
+    el.viewerBody.appendChild(embed);
+  }else if((mime||"").startsWith("image/")){
+    const wrap = document.createElement("div");
+    wrap.style.width = "100%";
+    wrap.style.height = "100%";
+    wrap.style.display = "grid";
+    wrap.style.placeItems = "center";
+    wrap.style.background = "#1118270a";
+
+    const img = document.createElement("img");
+    img.alt = name || "画像";
+    img.src = url;
+    img.style.maxWidth = "100%";
+    img.style.maxHeight = "100%";
+    img.style.display = "block";
+    img.style.objectFit = "contain";
+
+    wrap.appendChild(img);
+    el.viewerBody.appendChild(wrap);
+  }else{
+    toast("表示できません", "この形式は表示に未対応です。");
+    return;
+  }
+
+  el.viewerBackdrop.classList.add("show");
+  el.viewer.classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+function closeViewer(){
+  el.viewerBackdrop.classList.remove("show");
+  el.viewer.classList.remove("show");
+  el.viewerBody.innerHTML = "";
+  document.body.style.overflow = el.sheet.classList.contains("show") ? "hidden" : "";
+}
+
+/* =========================================================
+   CRUD: add/edit/delete/copy
+========================================================= */
+function beginEdit(eventId){
+  const ev = state.events.find(e => e.id === eventId);
+  if(!ev){ toast("編集失敗", "予定が見つかりません。"); return; }
+
+  editingEventId = ev.id;
+  el.editModeInfo.style.display = "block";
+  el.editModeTitle.textContent = ev.title || "(無題)";
+  el.saveEventBtn.textContent = "更新";
+  el.cancelEditBtn.style.display = "inline-block";
+
+  el.evTitle.value = ev.title || "";
+  el.evCat.value = ev.catId || "keiko";
+  el.evNote.value = ev.note || "";
+
+  clearPending(); // 保存してない一時添付は消す
+  toast("編集モード", "内容を変更して「更新」を押してください。");
+  setTimeout(() => el.evTitle.focus(), 0);
+}
+function cancelEdit(){
+  editingEventId = null;
+  el.editModeInfo.style.display = "none";
+  el.editModeTitle.textContent = "";
+  el.saveEventBtn.textContent = "追加";
+  el.cancelEditBtn.style.display = "none";
+}
+function addOrUpdateEvent(){
+  const title = (el.evTitle.value || "").trim();
+  if(!title){
+    toast("入力エラー", "タイトルは必須です。");
+    el.evTitle.focus();
+    return;
+  }
+  if(title.length > 60){
+    toast("入力エラー", "タイトルが長すぎます（最大60文字）。");
+    el.evTitle.focus();
+    return;
+  }
+
+  const catId = (el.evCat.value || "").trim();
+  if(!catById(catId)){
+    toast("入力エラー", "カテゴリが不正です。");
+    return;
+  }
+
+  const note = (el.evNote.value || "").trim();
+  const attachBytes = pendingAttachments.reduce((s,a)=>s+(a.size||0),0);
+  if(attachBytes > LIMIT_EVENT_ATTACH_BYTES){
+    toast("添付が大きすぎます", "添付合計が上限を超えます。");
+    return;
+  }
+
+  if(editingEventId){
+    const ev = state.events.find(e => e.id === editingEventId);
+    if(!ev){
+      toast("更新失敗", "編集対象が見つかりません。");
+      cancelEdit();
+      return;
+    }
+
+    ev.title = title;
+    ev.catId = catId;
+    ev.note = note;
+
+    ev.attachments = Array.isArray(ev.attachments) ? ev.attachments : [];
+    for(const a of pendingAttachments){
+      ev.attachments.push({
+        id: a.id,
+        name: a.name,
+        mime: a.mime,
+        size: a.size,
+        blobKey: a.blobKey
+      });
+    }
+
+    try{ saveState(); }catch(_e){
+      toast("保存失敗", "更新の保存に失敗しました。");
+      return;
+    }
+
+    toast("更新しました", `${selectedDate}：${title}`);
+
+    // ★ 重要：保存後はIDBのblobKeyを消さない（添付が消える原因）
+    clearPending({ deleteBlobs: false });
+
+    cancelEdit();
+    renderDayList();
+    render();
+    return;
+  }
+
+  const ev = {
+    id: uuidLike(),
+    date: selectedDate,
+    title,
+    catId,
+    note,
+    createdAt: Date.now(),
+    attachments: pendingAttachments.map(a => ({
+      id: a.id,
+      name: a.name,
+      mime: a.mime,
+      size: a.size,
+      blobKey: a.blobKey
+    }))
+  };
+
+  state.events.push(ev);
+
+  try{ saveState(); }catch(_e){
+    state.events = state.events.filter(e => e.id !== ev.id);
+    toast("保存失敗", "保存に失敗しました。");
+    return;
+  }
+
+  toast("追加しました", `${selectedDate}：${title}`);
+  el.evTitle.value = "";
+  el.evNote.value = "";
+
+  // ★ 重要：保存後はIDBのblobKeyを消さない（添付が消える原因）
+  clearPending({ deleteBlobs: false });
+
+  renderDayList();
+  render();
+  el.evTitle.focus();
+}
+async function deleteEvent(eventId){
+  const ev = state.events.find(e => e.id === eventId);
+  if(!ev){
+    toast("削除失敗", "対象の予定が見つかりませんでした。");
+    return;
+  }
+
+  const atts = Array.isArray(ev.attachments) ? ev.attachments : [];
+  for(const a of atts){
+    if(a && a.blobKey){
+      await idbDeleteBlob(a.blobKey).catch(()=>{});
+      const u = blobUrlCache.get(a.blobKey);
+      if(u){ try{ URL.revokeObjectURL(u); }catch(_e){} blobUrlCache.delete(a.blobKey); }
+    }
+  }
+
+  state.events = state.events.filter(e => e.id !== eventId);
+  try{ saveState(); }catch(_e){}
+  toast("削除しました", "予定を削除しました。");
+  if(editingEventId === eventId) cancelEdit();
+  renderDayList();
+  render();
+}
+
+async function cloneEventWithAttachmentsToDate(ev, toDate){
+  const clone = {
+    id: uuidLike(),
+    date: toDate,
+    title: (ev.title || "(無題)"),
+    catId: ev.catId || "keiko",
+    note: ev.note || "",
+    createdAt: Date.now(),
+    attachments: []
+  };
+
+  const atts = Array.isArray(ev.attachments) ? ev.attachments : [];
+  for(const a of atts){
+    if(!a || !a.blobKey) continue;
+    try{
+      const blob = await idbGetBlob(a.blobKey);
+      if(!blob) continue;
+
+      const newBlobKey = uuidLike();
+      await idbPutBlob(newBlobKey, blob);
+
+      clone.attachments.push({
+        id: uuidLike(),
+        name: a.name || "file",
+        mime: a.mime || blob.type || "",
+        size: a.size || blob.size || 0,
+        blobKey: newBlobKey
+      });
+    }catch(_e){ /* ignore */ }
+  }
+  return clone;
+}
+
+/* =========================================================
+   Copy modal (custom calendar + chips)
+========================================================= */
+function ensureBodyLockedForModal(){
+  document.body.style.overflow = "hidden";
+}
+
+function setCopyPickYM(ym){
+  copyPickYM = ym;
+  renderCopyPicker();
+}
+
+function showCopyModalForEvent(eventId){
+  const ev = state.events.find(e => e.id === eventId);
+  if(!ev){
+    toast("コピーできません", "対象の予定が見つかりません。");
+    return;
+  }
+  copyEventId = eventId;
+
+  el.copyModalTitle.textContent = "複数日付にコピー";
+  el.copyFromInfo.textContent = `コピー元：${ev.date} ・ ${ev.title || "(無題)"}`;
+
+  copySelected = new Set();
+  el.copyPaste.value = "";
+
+  // 初期：翌日を追加
+  const nextDay = addDaysToYMD(ev.date, 1) || ymd(new Date());
+  if(nextDay !== ev.date) copySelected.add(nextDay);
+
+  // カレンダー表示月：元の日付の月
+  const ym = ev.date.slice(0,7);
+  setCopyPickYM(ym);
+
+  renderCopyChips();
+
+  el.copyBackdrop.classList.add("show");
+  el.copyModal.classList.add("show");
+  ensureBodyLockedForModal();
+}
+
+function hideCopyModal(){
+  el.copyBackdrop.classList.remove("show");
+  el.copyModal.classList.remove("show");
+  copyEventId = null;
+  copySelected = new Set();
+
+  if(el.sheet.classList.contains("show")) document.body.style.overflow = "hidden";
+  else document.body.style.overflow = "";
+}
+
+function normalizeCopyDates(dates, fromDate){
+  const s = new Set();
+  for(const d of dates){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    if(d === fromDate) continue;
+    s.add(d);
+  }
+  return Array.from(s).sort();
+}
+
+function renderCopyChips(){
+  el.copyChips.innerHTML = "";
+  const ev = state.events.find(e => e.id === copyEventId);
+  const fromDate = ev ? ev.date : null;
+
+  const list = normalizeCopyDates(Array.from(copySelected), fromDate || "");
+  for(const d of list){
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.textContent = d;
+
+    const x = document.createElement("button");
+    x.className = "x";
+    x.textContent = "✕";
+    bindTap(x, (e) => {
+      e.stopPropagation();
+      copySelected.delete(d);
+      renderCopyChips();
+      renderCopyPicker();
+    });
+
+    chip.appendChild(x);
+    el.copyChips.appendChild(chip);
+  }
+
+  if(list.length === 0){
+    const p = document.createElement("div");
+    p.className = "helper";
+    p.style.marginTop = "6px";
+    p.textContent = "まだ日付が選択されていません。カレンダーをタップして追加してください。";
+    el.copyChips.appendChild(p);
+  }
+}
+
+/* custom picker render: Mon-first */
+function renderCopyPicker(){
+  const base = ymToDate(copyPickYM);
+  el.copyPickerTitle.textContent = `${base.getFullYear()}年 ${base.getMonth()+1}月`;
+
+  const y = base.getFullYear();
+  const m0 = base.getMonth();
+  const first = startDowMon0(y, m0); // 0=Mon
+  const dim = daysInMonth(y, m0);
+
+  const prev = new Date(y, m0-1, 1);
+  const prevDim = daysInMonth(prev.getFullYear(), prev.getMonth());
+
+  const weeks = Math.ceil((first + dim)/7);
+  const total = weeks*7;
+
+  const todayStr = ymd(new Date());
+  const ev = state.events.find(e => e.id === copyEventId);
+  const fromDate = ev ? ev.date : "";
+
+  el.copyPickerGrid.innerHTML = "";
+  el.copyPickerGrid.style.gridTemplateRows = `repeat(${weeks}, 44px)`;
+
+  for(let i=0;i<total;i++){
+    const cell = document.createElement("div");
+    cell.className = "calPickCell";
+    cell.setAttribute("role", "button");
+    cell.setAttribute("tabindex", "0");
+
+    let dayNum, dStr, muted=false;
+
+    if(i < first){
+      dayNum = prevDim - (first - 1 - i);
+      const d = new Date(y, m0-1, dayNum);
+      dStr = ymd(d);
+      muted = true;
+    }else if(i >= first + dim){
+      dayNum = i - (first + dim) + 1;
+      const d = new Date(y, m0+1, dayNum);
+      dStr = ymd(d);
+      muted = true;
+    }else{
+      dayNum = i - first + 1;
+      const d = new Date(y, m0, dayNum);
+      dStr = ymd(d);
+    }
+
+    cell.textContent = String(dayNum);
+
+    // ★ 土日祝の色分け（優先：祝日＞日曜＞土曜）
+    const dObj = ymdToDate(dStr);
+    const dow = dObj ? dObj.getDay() : null;
+    if(isHoliday(dStr)){
+      cell.classList.add("holiday");
+    }else if(dow === 0){
+      cell.classList.add("sun");
+    }else if(dow === 6){
+      cell.classList.add("sat");
+    }
+
+    if(muted) cell.classList.add("muted");
+    if(dStr === todayStr) cell.classList.add("today");
+    if(copySelected.has(dStr)) cell.classList.add("selected");
+
+    // 元の日付は選べない（除外）
+    if(dStr === fromDate){
+      cell.classList.add("disabled");
+    }
+
+    bindTap(cell, () => {
+      if(dStr === fromDate) return;
+      if(copySelected.has(dStr)) copySelected.delete(dStr);
+      else copySelected.add(dStr);
+      renderCopyChips();
+      renderCopyPicker();
+    });
+
+    el.copyPickerGrid.appendChild(cell);
+  }
+}
+
+function addQuickDate(deltaDays, deltaMonths){
+  const ev = state.events.find(e => e.id === copyEventId);
+  if(!ev) return;
+  let d = ev.date;
+  if(typeof deltaDays === "number") d = addDaysToYMD(d, deltaDays);
+  if(typeof deltaMonths === "number") d = addMonthsToYMD(d, deltaMonths);
+  if(!d || d === ev.date) return;
+  copySelected.add(d);
+  renderCopyChips();
+  renderCopyPicker();
+}
+
+function applyPasteDates(){
+  const ev = state.events.find(e => e.id === copyEventId);
+  const fromDate = ev ? ev.date : "";
+
+  const pasted = parseYMDList(el.copyPaste.value || "");
+  if(pasted.length === 0){
+    toast("反映できません", "日付（YYYY-MM-DD）が見つかりませんでした。");
+    return;
+  }
+
+  let added = 0;
+  for(const d of pasted){
+    if(d === fromDate) continue;
+    if(!copySelected.has(d)){
+      copySelected.add(d);
+      added++;
+    }
+  }
+
+  toast("反映しました", `${added}件の日付を追加しました。`);
+  renderCopyChips();
+  renderCopyPicker();
+}
+
+async function runCopyToMultiDates(){
+  const ev = state.events.find(e => e.id === copyEventId);
+  if(!ev){
+    toast("コピー失敗", "コピー元が見つかりませんでした。");
+    hideCopyModal();
+    return;
+  }
+
+  const dates = normalizeCopyDates(Array.from(copySelected), ev.date);
+  if(dates.length === 0){
+    toast("コピーできません", "コピー先の日付を1つ以上指定してください（元の日付は除外されます）。");
+    return;
+  }
+
+  for(const toDate of dates){
+    const c = await cloneEventWithAttachmentsToDate(ev, toDate);
+    state.events.push(c);
+  }
+
+  try{ saveState(); }catch(_e){
+    toast("保存失敗", "コピーの保存に失敗しました。");
+    return;
+  }
+
+  toast("コピーしました", `${dates.length}件にコピーしました。`);
+  hideCopyModal();
+  renderDayList();
+  render();
+}
+
+/* =========================================================
+   Day list + attachments
+========================================================= */
+function renderDayList(){
+  const list = state.events
+    .filter(e => e.date === selectedDate)
+    .sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
+
+  el.eventList.innerHTML = "";
+
+  if(list.length === 0){
+    const p = document.createElement("div");
+    p.className = "helper";
+    p.textContent = "この日の予定はまだありません。上のフォームから追加できます。";
+    el.eventList.appendChild(p);
+    return;
+  }
+
+  for(const ev of list){
+    const item = document.createElement("div");
+    item.className = "item";
+
+    const left = document.createElement("div");
+    left.className = "itemLeft";
+
+    const txt = document.createElement("div");
+    txt.className = "itemTxt";
+
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = ev.title || "(無題)";
+    const bg = getEventColor(ev);
+    t.style.background = bg;
+    t.style.color = pickTextColor(bg);
+
+    const s = document.createElement("div");
+    s.className = "s";
+    const aCount = Array.isArray(ev.attachments) ? ev.attachments.length : 0;
+    const noteInfo = (ev.note && ev.note.trim()) ? " ・ メモあり" : "";
+    s.textContent = aCount
+      ? `${selectedDate} ・ 添付 ${aCount}件${noteInfo}`
+      : `${selectedDate}${noteInfo}`;
+
+    txt.appendChild(t);
+    txt.appendChild(s);
+
+    if(ev.note && ev.note.trim()){
+      const n = document.createElement("div");
+      n.className = "helper";
+      n.style.marginTop = "8px";
+      n.textContent = ev.note.trim();
+      txt.appendChild(n);
+    }
+
+    if(aCount){
+      const grid = document.createElement("div");
+      grid.className = "attachList";
+      for(const att of ev.attachments){
+        grid.appendChild(renderAttachmentCardSaved(ev.id, att));
+      }
+      txt.appendChild(grid);
+    }
+
+    left.appendChild(txt);
+
+    const actions = document.createElement("div");
+    actions.className = "itemActions";
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "smallBtn btnMiniPrimary";
+    editBtn.textContent = "編集";
+    bindTap(editBtn, (e) => { e.stopPropagation(); beginEdit(ev.id); });
+
+    const cp = document.createElement("button");
+    cp.className = "smallBtn btnMiniPrimary";
+    cp.textContent = "コピー";
+    bindTap(cp, (e) => {
+      e.stopPropagation();
+      showCopyModalForEvent(ev.id);
+    });
+
+    const del = document.createElement("button");
+    del.className = "smallBtn btnDanger";
+    del.textContent = "削除";
+    bindTap(del, async (e) => {
+      e.stopPropagation();
+      if(!confirm("この予定を削除しますか？（添付も消えます）")) return;
+      await deleteEvent(ev.id);
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(cp);
+    actions.appendChild(del);
+
+    item.appendChild(left);
+    item.appendChild(actions);
+
+    el.eventList.appendChild(item);
+  }
+}
+
+function renderAttachmentCardSaved(eventId, att){
+  const card = document.createElement("div");
+  card.className = "attachCard";
+
+  const thumb = document.createElement("div");
+  thumb.className = "attachThumb";
+
+  const isImg = att && typeof att.mime === "string" && att.mime.startsWith("image/");
+  if(isImg){
+    const img = document.createElement("img");
+    img.alt = att.name || "画像";
+    img.src = "";
+    thumb.appendChild(img);
+    getObjectUrl(att.blobKey).then(url => { if(url) img.src = url; });
+  }else{
+    const b = document.createElement("div");
+    b.className = "pdfBadge";
+    b.textContent = "PDF";
+    thumb.appendChild(b);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "attachMeta";
+
+  const name = document.createElement("div");
+  name.className = "attachName";
+  name.textContent = att.name || "(無名)";
+
+  const btns = document.createElement("div");
+  btns.className = "attachBtns";
+
+  const openBtn = document.createElement("button");
+  openBtn.className = "smallBtn btnGhost";
+  openBtn.textContent = "開く";
+  bindTap(openBtn, (e) => { e.stopPropagation(); openAttachment(att.name, att.mime, att.blobKey); });
+
+  const rmBtn = document.createElement("button");
+  rmBtn.className = "smallBtn btnDanger";
+  rmBtn.textContent = "削除";
+  bindTap(rmBtn, async (e) => {
+    e.stopPropagation();
+    if(!confirm("この添付を削除しますか？")) return;
+    await removeAttachmentFromEvent(eventId, att.id);
+  });
+
+  btns.appendChild(openBtn);
+  btns.appendChild(rmBtn);
+
+  meta.appendChild(name);
+  meta.appendChild(btns);
+
+  card.appendChild(thumb);
+  card.appendChild(meta);
+  return card;
+}
+
+async function removeAttachmentFromEvent(eventId, attId){
+  const ev = state.events.find(e => e.id === eventId);
+  if(!ev || !Array.isArray(ev.attachments)) return;
+
+  const target = ev.attachments.find(a => a.id === attId);
+  ev.attachments = ev.attachments.filter(a => a.id !== attId);
+
+  if(target && target.blobKey){
+    await idbDeleteBlob(target.blobKey).catch(()=>{});
+    const u = blobUrlCache.get(target.blobKey);
+    if(u){ try{ URL.revokeObjectURL(u); }catch(_e){} blobUrlCache.delete(target.blobKey); }
+  }
+
+  try{ saveState(); }catch(_e){}
+  toast("添付を削除しました", "添付ファイルを削除しました。");
+  renderDayList();
+  render();
+}
+
+/* =========================================================
+   Navigation
+========================================================= */
+function goMonth(delta){
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+delta, 1);
+  render();
+}
+function goToday(){
+  const t = new Date();
+  viewDate = new Date(t.getFullYear(), t.getMonth(), 1);
+  render();
+  openDay(ymd(t));
+}
+
+/* =========================================================
+   Wiring
+========================================================= */
+bindTap(el.prevBtn, () => goMonth(-1));
+bindTap(el.nextBtn, () => goMonth(1));
+bindTap(el.todayBtn, () => goToday());
+bindTap(el.addQuickBtn, () => openDay(ymd(new Date())));
+
+bindTap(el.saveEventBtn, addOrUpdateEvent);
+bindTap(el.cancelEditBtn, () => { cancelEdit(); clearPending(); });
+
+el.evTitle.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    addOrUpdateEvent();
+  }
+});
+
+bindTap(el.closeSheetBtn, hideSheet);
+bindTap(el.backdrop, hideSheet);
+
+el.fileInput.addEventListener("change", async (e) => {
+  const files = e.target.files ? Array.from(e.target.files) : [];
+  await addFilesAsPending(files);
+  el.fileInput.value = "";
+});
+bindTap(el.clearPendingBtn, () => clearPending());
+
+el.sheet.addEventListener("paste", handlePaste);
+el.attachZone.addEventListener("paste", handlePaste);
+
+bindTap(el.closeViewerBtn, closeViewer);
+bindTap(el.viewerBackdrop, closeViewer);
+
+/* copy modal */
+bindTap(el.closeCopyModalBtn, hideCopyModal);
+bindTap(el.copyBackdrop, hideCopyModal);
+bindTap(el.cancelCopyBtn, hideCopyModal);
+bindTap(el.confirmCopyBtn, runCopyToMultiDates);
+
+bindTap(el.copyPickPrevBtn, () => {
+  const d = ymToDate(copyPickYM);
+  const prev = new Date(d.getFullYear(), d.getMonth()-1, 1);
+  setCopyPickYM(formatYM(prev));
+});
+bindTap(el.copyPickNextBtn, () => {
+  const d = ymToDate(copyPickYM);
+  const next = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  setCopyPickYM(formatYM(next));
+});
+bindTap(el.copyPickTodayBtn, () => {
+  const t = new Date();
+  setCopyPickYM(formatYM(new Date(t.getFullYear(), t.getMonth(), 1)));
+});
+
+bindTap(el.addNextDayBtn, () => addQuickDate(1, null));
+bindTap(el.addNextWeekBtn, () => addQuickDate(7, null));
+bindTap(el.addNextMonthBtn, () => addQuickDate(null, 1));
+bindTap(el.clearDatesBtn, () => {
+  copySelected = new Set();
+  el.copyPaste.value = "";
+  renderCopyChips();
+  renderCopyPicker();
+});
+bindTap(el.applyPasteBtn, applyPasteDates);
+
+document.addEventListener("keydown", (e) => {
+  if(e.key === "Escape"){
+    if(el.viewer.classList.contains("show")) closeViewer();
+    else if(el.copyModal.classList.contains("show")) hideCopyModal();
+    else if(el.sheet.classList.contains("show")) hideSheet();
+  }
+});
+
+/* =========================================================
+   Boot
+========================================================= */
+(function boot(){
+  if(!Array.isArray(state.events)) state.events = [];
+  for(const ev of state.events){
+    if(!Array.isArray(ev.attachments)) ev.attachments = [];
+    if(!ev.catId) ev.catId = "keiko";
+    if(typeof ev.note !== "string") ev.note = "";
+  }
+
+  renderLegendAndSelect();
+  viewDate = ymToDate(state.viewYM);
+  render();
+  enableSmoothMonthSwipe();
+})();
+</script>
+
+</body>
+</html>
